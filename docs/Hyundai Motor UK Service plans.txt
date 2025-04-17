@@ -1,0 +1,173 @@
+Hyundai Motor UK Service plans – vol. 1 2025
+Table of content:
+1.	Short brief of what is a manufacturer (organization), manufacturer plan and the story of HMUK and exsto
+
+2.	Deep dive into a HMUK plan flow
+2.1.	Siebel vehicle lookup
+2.2.	Configuration specifics
+2.3.	Pricing specifics
+2.4.	Payments specifics HMUK and number of payments algorithm  
+2.5.	GlobalPay – collection of deposits (and customer refunds) via card
+2.6.	HMUK and dealer contributions
+2.7.	Confirmation and customer documentation
+2.8.	Cancellation specifics
+2.9.	Siebel customer and offer update
+2.10.	Open Quotes scope – the quote after becoming a contract
+2.11.	HMUK users – capabilities
+2.12.	Legacy plans
+
+3.	HMUK plans data flows
+3.1.	Spindogs Live/Cancelled feed
+3.2.	Cancelled plans VINs report
+3.3.	STRB sales reports
+3.4.	H360 CRM – dedicated HMUK plans feed
+3.5.	Owner change quarterly report
+
+4.	HMUK daily email reports / error reports – what are they informing us?
+4.1.	Report for yesterday`s updated Pay By Link payments
+4.2.	Live plans with no Sales History ID 7 days after confirmation
+4.3.	Manually Called Siebel Actions 
+4.4.	HMUK Monthly Plans with future deficit for service
+4.5.	Plan pending status report
+4.6.	HMUK Provisional plans with Complete GP Payment (automatic plan confirmation
+1.	Short brief of what is a manufacturer (organization), manufacturer plan and the story of HMUK and exsto
+The term manufacturer has a long story in the exsto plans and its business logic origins back with the first contract with Audi Australia. If there could be a definition of the manufacturer (organization) entity it can be defined as:
+A legal entity (company) which has the franchise of certain vehicle brand/s and has a dealer groups network contracted to sell service plans and other services according to the agreed terms. Most of the times the range of an organization is a country. In a SQL terms we can define the relation as one-to-many, where all the dealer groups can serve the same vehicle on the same conditions, with some differences under the hood. 
+Almost all organizations (will be referenced like that in the manual) integrate into the standard behaviour of the exsto plans application, but also almost all have their specialities that are handled via setup in 
+-	Org.t_org – global table for organizations, rarely used for plans specific business logic. The ID column is a global column which makes the org_id constant and unique. !!! Org_id or OrganizationID property is used as a constant in the code layers to define custom logic or behaviour for specific requirements which in most cases are not applicable for other organizations 
+-	Pln.t_par_org – a parallel Service plan setup table on organization level. 
+Defines in most the organization behaviour on standard, but also custom developed setup.
+There are standard rules that are defined for organizational service plans which are followed among all:
+
+-	Dealer groups access organizational plans only through dedicated dealerships created for the purpose. The most common convention to recognize an official network dealership is the name starts with the name of the organization – Hyundai Motor UK - $DealershipName Northampton, Toyota GB - $DealershipName Northampton and etc.
+Users need to have access to at least 1 official dealership of the network in order to create and access official organization plans.
+
+
+-	Customers can service their vehicles in the entire network of the organization. That`s the beauty and probably the most important purpose of the network – no matter which dealer the customer used to purchase the service plan, they can visit everyone in the network with a guaranteed service and original parts and guaranteed price. 
+-	Related with the previous one, but worth to mention – official dealers can access all live (Confirmed) plans in the network, which also includes Pending Cancellation plans. All other statuses can`t be accessed, as provisional quotes are restricted mainly with a trading reasons (not to steal customers each other)
+-	All funds collected are held in a single organization pot and are being distributed in a form of monthly reimbursement based on the services done by the dealerships during the previous month. This one is determined from the rule that a customer can visit any official dealer and service their vehicle, so funds should be centralized and distributed in the network.
+-	Organizational plans have a centralized menu pricing which they strictly follow. This means they can`t be used or transferred under a dealership that is not part of their official network (at least at the time this manual is created). Some organizations allow dealer to have their individual invoicing hourly rate, which affects the reimbursement amount, but in almost all cases the customer should receive the same pricing offer no matter which dealer part of the official network did the quote.
+
+
+Hyundai Motor UK (HMUK) are the first active organization in the exsto platform, starting with a go-live for Service plan in May 2018 (MG Motor UK are set previously, but got active later). 
+They are one of the most demanding but most selling organizations so far. There are a lot of custom behaviour and also UI specifics, as even the edit and amend plan processes load individual HMUK components which handle only HMUK plans.
+
+
+
+
+
+2.	Deep dive into a HMUK plan flow
+In this section we will take a step-by-step look over the main specifics and integrations for HMUK following the plan creation flow
+
+2.1.	Siebel vehicle lookup – HMUK has an individual API service which return the vehicle data used for the build of the vehicle record. Although the vehicle is stored with all the properties in the veh.t_veh table, the actual lookup targets different proc – huk. s_veh_cus_srv_hst_det, but after the Menu Pricing system was build by eDynamix for HMUK, the lookup was redirected to the MP instance (huk. s_veh_cus_srv_hst_det_int_mnp), but again they use the Siebel data. The data from Siebel return also customer data if present and a service history json object, which is listed on the Manufacturer history list. 
+
+2.2.	Configuration specifics – The configuration page looks the same both on Edit and Amend, but there are the following specifics:
+ 
+-	The next type of service has prediction enabled and based on the age or the current mileage the next service gets pre-selected. Users can adjust if needed.
+-	The First service date is calculated standard as all plans, but users can manually interact and change it. This is captured in a fst_srv_dat_adj bit column in pln.t_pln. The user gets notified that there will be a mandatory need of customer deposit (or contribution) to cover the service if the date chosen is before the first payment date
+-	Dealership drop-down for changing the plan belonging is not available. Once a plan is created it should never change its origin except manually by request
+-	Not yet had a service and a specific include optional Interim checkboxes are present on the Edit, no matter of the vehicle age (for the 1st one) and the second is a specific option that changes the vehicle service interval (MP staff, just for info)
+ 
+
+2.3.	Pricing specifics – as already mentioned, organizations have a centralized pricing system and all the end prices and intervals are the same for the vehicle no matter where quoted. On any issues related with Pricing and scheduling we should contact the MP Team. Important to notice about the Services section is that
+-	HMUK disallow any individual service discount
+-	Only the last service can be excluded with removing it from the schedule (the keeper reasons are not present)
+-	At the moment of writing the manual HMUK supply only MOTs as an option services
+ 
+
+
+2.4.	Payments specifics HMUK and number of payments algorithm  
+HMUK payments calculation follow the standard rules and flow with some specifics that will be described below. The organization supports fully paid, paid with a single DD payment scheme and the most used – the monthly paid scheme, deposit and contributions are allowed, Flexi payment is not applicable scheme.
+
+ The custom options are:
+ 
+-	There is a special calculation for the number of payments which embeds the idea of enough funds for all services, but DO NOT guarantee that on all plans. 
+The only limitation is that there is a min. limit of payments that we go down to. 
+The calculations are done in pln.f_pmt_num function and actually was parametrized to be used by all organizations at some point after its creation
+pmt_num_cal column in  pln.t_par_org. The minimum payment number is a percentage from the total payments possible for a plan and at the moment is fixed on 80% with a setup in num_pmt_pnt column, same setup table. 
+The calculation for the number of payments is the following:
+We compare the running total that needs to be collected for services according to the service dates with the number of payments * the average monthly payment and lower with 1 payment on each iteration until enough money are in the pot for all services or we reach the min. number of instalments according to the % set
+
+-	Since HMUK plans can have the first service covered by deposit / contribution, there is a specific logic for the first payment period in the pln.s_pmt_ins
+-	HMUK have a MOT payment specific calculation which idea is to cover the first MOT in the plan and not cause any funds shortages (refer pln.s_pmt_ins)
+
+2.5.	GlobalPay – collection of deposits (and customer refunds) via card
+GlobalPay (GP) is an online payment provider, which eDynamix integrated in exsto Service plan to handle card payments from customers but also auto refund fully paid plans that has card entity (payment via GP registered). HMUK insists and targets 100% of customer deposits / top ups to be collected via GP card payment, but in reality there is a way to be collected outside of GP, where HMUK users has the ability to do that. At the moment the GlobalPay integration is exclusively for HMUK and is being used in Plans and Subscriptions module. The only method used for payments is the PayByLink method, which generally explained generate an HPP payment link hosted on GP server, where the customer can pay the requested amount. Once attempt for payment is made by the customer, exsto gets a response from GP with the status on a dedicated external API url or application controller (for external apps like Subscriptions) and the transaction gets updated. !!Important notice – the payment status handle triggers plan confirmation or amendment confirmation, until status change response is received, plans are locked with a Pending Change status and no action can be done. If the payment expires (24 hours after the link is generated) or fails, the plan gets unlocked for further actions and attempts.
+
+Basic view of a plan confirmed (amendment confirmation) with payment via GP:
+
+ 
+-	Setup and operational tables in the DB
+•	Pmt.t_onl_par – stores the setup for the service on app_id level.
+•	Pmt.t_onl – stores each payment entity, refers to the plan with a ref_id column which stores the planID. It stores the amount collected, status, request, response, customer and payment GUID, used for refunding of the customer – eDynamix don`t store any payment details of the customer. 
+-	Stored procedures
+•	Pmt.s_onl_ins – used to create a record in pmt.t_onl for the plan or subscription when there is a collection to be done (deposit, top-up payment or setup fee for subscriptions)
+•	Pmt.s_onl_del – delete a payment record, used only for Outstanding transactions, when deposit or top up gets zeroed during plan configuration
+•	Pmt.s_onl_snd  - this is the most important procedure, as it creates the payment request, calls the GP API endpoint and generates the link, saves it in the pmt.t_onl table and sets the payment in status In Progress. Plan gets locked for any changes (pnd_sta = 1 in pln.t_pln)
+•	Pmt.s_onl_pmt_upd – the procedure that handles the response from Global payment. If the payment failed, the plan gets reset to its normal state allowing all actions, plus starting the operation again (edit or amend and confirmation).
+
+2.6.	HMUK and dealer contributions
+There are two types of contribution over the plan for organizational plans which is valid also for HMUK:
+-	Dealer contributions – when the dealer group contributes amount over the customer plan. The amount is being collected from the dealer on monthly basis directly by HMUK on basis of the monthly billing file we are issuing. Dealer contributions are NOT refundable on plans applied before 4th of May 2024 and can be only transferred by HMUK users. After this date the applied contributions are refunded to the dealer in the following order: 
+HMUK contribution first
+Dealer contribution 2nd 
+Customer funds the last
+
+So for example on 200/200/200 equal amounts contributed in the above order, with 500.00 avl. Funds, we have 200 refunded for HMUK, 200 refunded for the dealer and 100 for the customer.
+
+-	HMUK Contribution – is the amount applied only by users in plans at the HMUK organizational centre + amendment done by HMUK user (org_id = 5 -> usr.t_usr). HMUK contribution is internal transaction, no funds movement occurs. HMUK is the only organization where we can have a hybrid contribution applied on a new quote, which came up with the Quarterly Low-cost campaigns, where HMUK contributes the price above the customer fixed deposit, needed to cover the service price. The customer deposit can be contributed by the dealer, which leads to the hybrid model. All the other occasions should be via top-ups or manual adjustments. 
+
+2.7.	Confirmation and customer documentation
+The confirmation of a service plan (confirm + amendment) for HMUK follows the same steps as a normal dealer plan except some specifics additionally touched for HMUK – a Siebel call is done or scheduled on plans with GP payment to be collected and HMUK have specific email and contract document templates sent to their customers (Hyundai print rdl`s and app.t_tpl -> org_id = 5 templates). The Siebel call will be described in the dedicated section. A specific on the web site is that Organizational plans are being defaulted with a Sold by to the user confirming the plan.
+
+2.8.	Cancellation specifics 
+Cancellation process again follows the standard process with a pln.s_pln_cnl call, but again there are some specific steps and facilities that take place for HMUK plans:
+-	Cancellation has special rules which are described in code in the pln.s_cnl_chk but the most important are – intra-dealer cancellations are not allowed, but HMUK users can cancel plans with no limitations. Users get to see a variable message of the reason they can cancel the plan depending on the situation.
+-	BACS cancellations are being placed in a 3 day Pending cancellation state as if a pending payment is waiting for collection. HMUK call centre uses that to contact the customer. The so called delay date is set in a cnl_dey_dat -> pln.t_pln and a daily job targets the plans with current date to be cancelled -> pln.s_pln_cnl_bac_dey
+-	Refunds are targeted to be executed mainly via auto refund (direct transfer from the joint account or via GP card refund), but when there is lack of bank/card details – the refunds are reported to HMUK as manual refund and are being executed by HMUK Finance. Card refunds via GP are exclusively executed only on fully paid plans where cards are present, but there are old plans or some confirmed with deposit outside GP where this is not possible. Monthly paid plans are refunded only via bank account or in some exception if card details are present – via GP, but those are manual requests only.
+The card refund is possible only with the “customer details” stored, as eDynamix don`t store the raw customer and card details, but their IDs in a cus_key and pmt_key (GUIDs) columns in the pmt.t_onl. These GUIDs are generated by our side and passed when creating the payment. 
+-	Legacy plans are cancelled exclusively only by HMUK. More info and explanation why in the dedicated section
+
+2.9.	Siebel customer and offer update
+Siebel takes a special place in the SP developers hearts with its specifics but also the bottlenecks that it creates with constant performance issues and paralyzing the service plan for HMUK plans during some mornings 😊. In short the Siebel system is a comprehensive tool developed by Hyundai Autoever for international use in the Hyundai group and the system serve as ERP and CRM at least the ways we know it. The vehicles gets registered by the manufacturers all over the world up to 48 hours after the VIN is reserved for the vehicle in the production line but in some cases if the car is not in the Siebel DB on the point of sale by the dealer, a service plan can`t be created unless a successful VehicleSearch is not performed. There are two main directions (endpoints) that the exsto Plans use the Siebel service for the HMUK plans handling:
+-	Vehicle Lookup (VehicleSearch endpoint) – the service return Vehicle, Customer and Service history info. The vehicle info is used to build the vehicle and create the record in veh.t_veh. After the latest changes at the time this manual is created the MP team is maintaining the API call and we consume the JSON in the huk.s_veh_cus_srv_det_int_mnp stored procedure. 
+Customer details are only used to be compared within the 2nd direction of use (next bullet explained)
+Service history is shown in the Manufacturer section on the plan summary, but also used for the next type of service prediction, also for invoicing purposes. 
+
+-	Customer details update (change of owner, details update) and Customer offer update (ChangeOfOwner endpoint) 
+The action, although running invisibly in the background is very important and sensitive, as it handles the customer records attached to the vehicle in the Siebel CRM. A single endpoint serves for three different types of call, which are diversified only via the action passed to the body of the request: 
+COO – stands for Customer owner change. The customer attached for the Siebel vehicle gets a new HMUK CustomerID. 
+COD – Change of detail – when the customer details just get updated without replacing the customer entity (new CustomerID)
+COC – change of offer – the request is sent on each plan confirm and amendment. There is a simple pattern that HMUK require us to send 
+XM or just X, as X is the years of the plan term, M is if a MOT is included in the plan (example 3M from 3 year plan with MOT and just 3 for 3year plan with only mandatory services)
+
+Full rules and description of the facility can be learned in the procedure:
+huk.s_cus_own_ofr_upd_int or the attached facility documentation provided by HMUK in the beginning. N.B. The process is probably the only documented and described so well and no requests coming for it, that it hasn`t been changed since 2018, except the time the call were directed to the InternalAPI  
+ 
+
+The above actions should be registered on each management event which includes:
+- Plan Confirmation / Amend confirmation
+-	Plan Cancellation 
+-	Plan Reinstate
+-	Customer details change, although on live plans the customer can be only changed by HMUK user, dealer users can change only contact info which triggers only Change of Detail a.k.a. customer update in Siebel
+ 
+2.10.	Open Quotes scope – the quote after becoming a contract
+Open Quotes section has a different scope for organizational plans than it behaves for the dealer group plan. 
+First and the most important to know is that HMUK (but also all organizational) user have access only in the Organizational headquarters dealer (setup controlled – org_dlr_id, org_cnt_id in pln.t_par_org) but they get listed and can search in the complete network no matter of the plan state. On the contrary, the dealer accounts are limited only to the plan created in their network plus all the live and pending cancellation contracts only, as the named plans in other dealers are only accessible via Quick, reg /VIN or customer details search. For example CE65YBL has a plan confirmed in dealer X, user at dealer Y can load it only via search. 
+
+There is a hidden plans facility that is developed for HMUK, where certain free plans are hidden from the dealer users with a setup in pln.t_pln_lim_fun -> hid_pln = 1. Those plans have whether changed their owner which breaks the spell for free (contributed) service plan eligibility for the new owner or the dealer had sold in advance paid plan for the customer dismissing the fact the car is eligible for HMUK contributed plan (cases valid for Q3 Free Sales campaign)
+
+2.11.	HMUK users – capabilities 
+There are a lot of preferences for HMUK users access, mainly to handle delicate matters, given in most cases to handle dealers request or solve common issues without involving the exsto support team. There are many facilities that are permitted only for HMUK users, some of the most important already mentioned in the current manual, but the main thing to remember is that the org_id = 5 in usr.t_usr provides the user access to the facility, as there is a special clause just for selected users for the Global pay collection exclusion, where there need to be also a ath_usr = 1 setup in pln.t_usr_ind_opt so they could use the facility. 
+
+2.12.	Legacy plans 
+These are plans imported in the exsto plans system which are valid only for available funds reference. There are no real services or other maintenance for the legacy plan except a daily sync operation of the available funds. There is a parallel feed for cancelled Legacy plans where the Legacy plans reported there are deleted from exsto with a reference only in Vehicleportal_Log.log.t_huk_cnl_leg_pln table that holds the file name reported and the VIN + veh_id from veh.t_veh.
+On the contrary, Legacy plans that are cancelled in the exsto are remaining, but a separate feed is being sent (more on that in the section for the Cancelled Legacy plans feed)
+Legacy plans` balance can be transferred into a new plan which is the only operation available for all users, cancellation is only available for HMUK users.
+HMUK headquarters has a group filter for all legacy plans, but they can be found only via reg or VIN, quick or customer details search by dealer users. 
+
+ 
+
+
+
+

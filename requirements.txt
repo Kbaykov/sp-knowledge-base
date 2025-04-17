@@ -1,2 +1,5 @@
 streamlit
+llama-index.core
 openai
+python-docx
+PyPDF2

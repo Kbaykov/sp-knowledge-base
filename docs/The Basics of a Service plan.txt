@@ -1,0 +1,164 @@
+The Basics of a Service plan (vol. 1)
+
+Table of content:
+
+1. What is a service plan? 
+1.1. Main terms
+2. Service plan simplified
+2.1 The golden triangle of the service plan
+2.2. Service plan secondaries 
+3. A small dive in service plan components
+3.1. Service scheduling
+3.2. The payments engine of a plan
+3.3. The balance sheet transactions
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+1.	What is a service plan? 
+The service plan is a termed subscription for a customer that covers a vehicle`s future servicing. Its total price can be pre-paid in advance (fully paid) or via direct debit payments spread during the plan term. The plan price can be also contributed via the dealer group with a dealer contribution amount
+
+1.1.	Main terms: 
+The current terms describe main plan properties, stored in the plan header table (pln.t_pln)
+Plan Type (typ) – New Vehicle, Used Vehicle, Aftersales – mainly used for reporting services, campaigns applicability or menu pricing discounts. Shows the category of the vehicle according to dealer`s rules
+Plan Term (per) – the duration of the plan in months
+Plan Payment type (ful_pmt, ful_pmt_bac, dst, cnt_con) – fully paid (paid in advance), monthly paid (via monthly payments), mixed (partially paid via deposit/contribution and monthly payments), single direct debit (paid in full via one future installment)
+Plan Status (sta) – shows the current state of a service plan during its lifecycle 
+
+•	Provisional – the initial offer to the customer (plan quote)
+•	Abandoned – an expired offer
+•	Confirmed – an active (live) plan contract (offer that is accepted by the customer)
+•	Cancelled – a contract that is terminated by the customer
+•	Complete – a contract which has all the payments collected and service claimed(invoiced).
+•	Expired – terminated contract due to customer not claimed the services, but the plan period has ended. Set via dealer request
+Dealer plan / Organizational (Manufacturer) plan (org_id) – dealer plans are plans sold directly by the group and are NOT under the official scope of a Brand national representative (Jaguar / Land Rover, Hyundai motor UK and etc.). Organizational plans are plan sold by dealers but within the official network of the manufacturer (org_id > 0 marks those). Contract are visible and manageable throughout all the dealers that have contracts with the franchise
+Internal / External Plan (ext_org, ext)  – a plan created via user in the internal exsto Service plan application is internal, external plans are created by the end customers via the self-service tool (Online service plan quote). If the ext column is true, it means the plan was edited by the OSPQ external site, but ext_org marks the origin (created in exsto false, or true for OSPQ)
+Number of payments (num_pmt) – the actual number of future payments that will be done by the customer. Fully paid plans have no (0) payments 
+First / Final service date (fst_srv_dat, fnl_srv_dat) – marks the date of the first and the last maintenance performed over the scope of a service plan
+First / Final payment date (fst_pmt_dat, fnl_pmt_dat) – the dates of the first and the last payments collected over the scope of a service plan
+Last service date (lst_srv_dat) – the date which the vehicle has been last serviced. Used to configure the future service dates
+Plan Campaign / CampaignID (cmp_id)  – if a plan is created under a sales campaign. This is important as campaigns can control both the duration, payment type and service prices of a plan entity.
+Plan Discount (dis, dis_amt) – overall discount applied by the dealer over the total price of the service plan. Column dis stores the percent applied discount and dis_amt the calculated amount (or the opposite on applied amount value discount)
+Final Price (fnl_prc) – the total price that the customer should pay after a service plan is confirmed (sold). It excludes any prepayments – deposit and contribution. Fully paid plans are 0.
+Total Admin Fee price (adm_prc_tot) – the total price of all admin fees of the service plan which should include the Setup Fee stp_fee (called also Management or Facilitation) which is for the dealer, Management fee (adm_prc) – the price that collects eDynamix, dealer management fee (dlr_adm_prc) – applicable for dealers that would like to collect monthly fee similar as eDynamix with each Direct Debit payment
+Plan Event dates – store dates of important actions made against a service plan:
+•	Create Date (cre_dat) – the date/time the quote/contract was created, static never changing
+•	Update Date (upd_dat) – the date/time the quote/contract was last update. Can change with important actions against the plan
+•	Abandon Date (abn_dat) – the date when the quote was set to abandoned i.e. its validity has expired. Static, never changing
+•	Confirmation Date (cfm_dat) – the date the plan was confirmed (the customer accepted the offer) and offer becomes contract. Static, never changing
+•	Amend Date (amd_dat) – the date the plan was Amended (contract reconfigured). Can change, due to multiply amends possible.
+•	Cancellation Date (cnl_dat) – the date when the plan was lastcancelled / contract terminated. Can change on multiple cancellations possible (after reinstate)
+•	Reinstate Date (rin_dat) – the date when the plan was last reinstated. Can change on multiple reinstates possible (after cancellation)
+•	Complete Date (cmp_dat) – the date when the contract (plan) was completed. Static, never changing, due to marking the end of the contract
+Event user colums  - stores the user names that done a relevant action. 
+•	Credated By (cre_by) – the user who created initially the quote, static
+•	Updated By (upd_by) – the user who updated lastly the quote/contract, changes with each update of the plan header table (important events only)
+•	Confirmed By (cfm_by) – the user who confirmed the quote into a contract, static.
+•	Sold By (sld_by) – the user who was initiated as the salesman against the plan and will get the benefit of commission. Can be changed by admin dealers, but most of the times remain static
+•	Amended By (amd_by) – the user who initiated the final plan amendment
+•	Cancelled By (cnl_by) - the user who initiated the final plan cancellation, not static, changes with each cancellation
+•	Completed By (cmp_by) – the user who initiated the completion. Most of the times it is initiated automatically and eDynamix Administrator is the user, but can be actioned manually by a dealer user.
+•	Reinstated By (rin_by) – the user who initiated the final plan reinstatement, not static, changes with each reinstate
+
+2.	Service plan simplified – if we take aside the settings and different behaviour and calculations that take place during a plan configuration, a service plan can be simplified as a payment plan for the future N services of a vehicle, which services are being scheduled according to the annual run and age or current mileage of the vehicle. While creating a service plan in the background we need to be sure to follow the service interval of the vehicle (for example 10k miles / 365 days (1year), whichever comes first) and make sure to collect enough money for all the payables over the plan entity – service prices and fees, honouring any discounts applied via the Menu Pricing setup of the dealer or user applied discounts.
+2.1.	The golden triangle of a service plan – in order to be eligible a service plan have minimum mandatory entities that need to be in place:
+•	Plan header (pln.t_pln) – the table that was already mentioned stores the main properties and configuration of a service plan. Without a plan header there is no plan 😊.
+•	Vehicle (veh.t_veh) – it all starts with the vehicle, which is the first step of creating a service plan. The brand, model and engine characteristics (fuel, size and etc) determine the correct prices and schedule is prepared for a service plan. The vehicle entity is referenced with a veh_id column in pln.t_pln and there couldn`t be a plan that is not referencing a vehicle in the database!!!
+•	Customer (cus.t_cus) – somebody has to pay for the services in a plan and in most cases, it is the owner of the vehicle. A quote can be created without а customer, by it can not be confirmed to a contract without a customer attached (some exceptions for campaigns can use generic customer records). The customer entity is reverenced with a cus_id column in pln.t_pln
+
+2.2.	Service plan secondaries – each plan is accompanied with extras, most of important, but not always mandatory for its existence
+•	Payments (pln.t_pmt) – every service plan should have at least 1 payment scheduled in the future, if the full price is not covered in advance by customer deposit (advanced payment) and/or dealer contribution. Monthly payments or installments are the heart of funds inflow and there will be a special chapter in the 3rd section, but basically if we don`t collect enough there will be a shortage
+•	Services (pln.t_srv/pln.t_srv_sch) – a plan with no services has almost no sense as a lack of services will not determine any plan price and collections, but with the service subscriptions gaining popularity and the concept of ad-hoc services being claimed over a payment plan, having a contract with no predefined services can soon be reality. Services are important for determining the payments schedule, have a specific engine for calculation which will be described in the advanced section, but the actual maintenance of the services, prices and etc is handled by the Menu Pricing team. Services can be classified on 2 main groups – Mandatory (Manufacturer) services pln.t_srv-> typ = ‘S’ and optional services typ = ‘O’ which the customer may or may not decide to include (MOTs, brake fluid and pads changes, coolant change and etc.)
+•	Balance sheet transactions (pln.t_bal_trn / pln.t_srv_log) – every plan has events occurring over its lifecycle – services claimed, funds collected, fees deducted, refunds on contract termination, which are handled with postings over the so-called Balance sheet. The funds handling is probably the most important business aspect of the plans and will also be deep-dived in the final chapter.
+
+3.	Small dive in service plan components – a plan, as much as can be simplified, has a lot of specifics which determine its full configuration and final state. There are specific rules for scheduling the services, dates that should be followed for the payments scheduling and others, which will be covered with the below explanations
+
+3.1.	Servicing schedule:
+The mandatory (S) services included in a plan follow strict rules which determine the service interval (the timeframe between each service), the number of services included, but probably the most important relation for the plan is that they determine the final price of a plan and the payments flow. There isn`t a straight mathematical formula to calculate the number of services, but they can be represented like that with a condition explained:
+
+**Number of services in a plan = 
+Plan term in months * (Annual run in miles / Service interval in miles (1)*) 
+			Service interval in months
+
+*since the interval of the service is measured in miles or time, whichever comes first, the division of the annual run should be always rounded to a whole number, minimum 1)
+
+**the precise calculation is made by splitting the annual run in a daily mileage, this formula is just for understanding the engine and as much as correct can bring deviation in the service intervals on non-round annual run . 
+
+Example of the formula – 36 months plan for a vehicle that does 20 000 miles on service interval 10000 / 1 year is: 
+
+36 * (20000/10000)  = 6
+	12		    
+The variables that determine the service scheduling of a plan explained:
+•	Plan scope – the plan scope is determined by the plan term and starts from the date of the creation of the plan or the last service date of the vehicle (it can be 3 months ahead) up to the final date according to the selected term. For example if a plan is created in January 2025 with a 36 month term, the end date of the scope is January 2028. The most important to remember about the scope is that all services which calculated dates are outside of this timeframe are not included in the schedule of the plan.
+•	Last Service Date – the date when the vehicle was last serviced. This is known by the customer and/or the dealer whoever is configuring initially the plan quote. It determines the next service date according to other variables, but is the starting point of calculations
+•	Annual run – the value of miles or kilometres (UK market is only in miles; EU markets use km) which the vehicle is expected to do for a year. It determine how much services should a vehicle do for a servicing interval. For example if a vehicle is doing 20 000 miles per year on a 10 000 / 1 year interval, the number of services for a full 12 month year are 2
+•	Service interval – this is the timeframe or the run that a vehicle is supposed to be serviced after its last service done (last service date). For example if a service takes place in January 2025 with a service interval of 10 000 miles or 1 year (whichever comes first) the next service should be when the 10k miles are done or if the run is lower, the service should occur 1 year after the last one or January 2026
+•	Next Type of Service – the value determines which service form the manufacturer schedule will be the first in a row for the service plan schedule. Usually the services set for a vehicle in the Menu Pricing consists servicing from year 1 to year 10. The next service is determined by the vehicle mileage and age. If a vehicle on a 10 000 /1 year interval is at age 5 years on the plan creation and hasn`t passed the 50 000 miles run, the next service should be the 6th or the 60 000 / 6 year 
+•	First service date – the starting date of the service schedule on a plan, marks when the first service of a plan will occur.
+
+3.2.	The payments engine of a plan – once the services of a plan are determined and the overall price, the payments should be determined. There is a universal equation that has to be fulfilled on every plan, no matter the payment methods used:
+
+Service price total  + plan fees total = Customer advanced payment + Dealer Contribution + Monthly payments price total
+Whenever the equation doesn`t match, it means the customer would be overtaken, or not enough funds will be collected. There is a specific logic that protects a plan to be confirmed (pln.f_pln_chk), which calculates and compares the totals. 
+
+There are two main types of payment for a service plan, the first one is fully paid, where the service price and fees are collected in advance. The payment can be contributed via dealer with a contribution amount. Example:
+Service price = £1000.00
+Fees = £50.00
+Total customer payment = £1050.00
+Applied dealer contribution = £200.00 => Customer payment = £850.00
+
+The second payment type has a special place in the hearts of the SP development team, as there are several rules and specific calculations. The plans that are monthly paid have their complete or partial total price collected via monthly instalments. At the time of writing this manual monthly collection occurs only once each 1st of the month via bank account direct debits (DD) for the UK market and via Stripe (card and bank available) for some Hyundai EU markets. The collected amount can be partial, due to applied CAP or contribution. Main terms related with the monthly payments:
+
+•	BACS - stands for Bankers' Automated Clearing System. It refers to the network of banks and building societies that participate in the Bacs payments scheme. It’s the system that we use for the UK market to collect direct debit payments.
+•	Direct debit instructions target dates – there are rules and terms that need to be followed in order to request, collect and write back the statuses of the DD payments, but for a SP developer there are 2 main dates to keep in mind:
+20th of the month – this is the final date where a plan can be confirmed with a first payment collected the next month. This cut off date is needed to send the so called 0N file in order to establish the DD instructions. 
+27th of the month – this is the date which the scheduled payments for a plan (!!!future ones, but also missed in previous attempts), are prepared and sent for collection. The plan is being locked for change of status until the attempted payments are not reported back and status updated to Successful or Failed. During that time, the payment status is Pending.
+•	Payment period – the timeframe where the monthly payments will be collected. In most cases (except special campaigns, subscription look-a-like plans) the payment period is always shorter than the plan period and should end before the final service date. The standard formula for calculating the payment period is the month difference between the first payment date of a plan the final service date. Example if a plan payment starts on 1st of February 2025 with a final service date in Feb 2028, the payments number is 34 i.e the datediff(month, fisrt payment date, final service date) and will end collection in Jan 2028. Of course, there are some specific rules and manufacturer requirements, but they mostly shorter the payment term in order to collect the plan price earlier
+•	First Payment period – very important in term of collecting enough funds for the first upcoming service and avoiding shortages on first service sometimes being scheduled in lest time than the usual service interval (the last service date can be in the past). The first payment period targets to collect enough funds for the first service in the schedule along with any optional services which have a pre-defined service dates. 
+
+Monthly paid schemes can vary, but the most used and important one to understand is the standard payment scheduling that occurs in pln.s_pmt_ins. There are a lot of variables to be considered but basically the standard payments calculation targets the following:
+
+
+ - Collect enough for the first service price + admin fees (first payment period) 
+-	Spread on equal as possible instalments the rest of the amount through the rest of the payments. 
+-	Deduct in advance from the total collectible the values of monthly products, ad-hoc services and maintenance funds, which are added to each payment in a dedicated block of code for each.
+-	Specific admin fee calculations for Car Care Plan, Hyundai and other customers
+
+There is another variation of collections that occur according to the service dates which is called Flexi payment, where collections are aligned with the service dates to ensure enough money are being collected, but it is avoided by most dealer groups due to variable installments during the payment period. For more reference of the Flexi Payments logic please check pln.s_pmt_per_ins which is the standard Flexi payment scheme and services are collected with prices spread over the complete payment period and pln.s_pmt_srv_per_ins which is a sub-type of the flexi payments and calculates payments over service periods collecting the amount of each service price between each service date. 
+
+3.3.	The balance sheet transactions – the plan actually generates a series of events all related with the funds collected to cover the included services and fees. All of those events are being captured for auditing, to keep available funds actual for each plan, but also for dealers to reconcile their accounts with the exsto Plans app (handled though a dedicated Accounts module). For all the balance postings of a plan there is a dedicated table -> pln.t_bal_trn. 
+There is a simple formula for the current balance of a plan which can be represented like that: 
+Plan funs inflow – (Invoiced Services + Plan Fees) = Plan current balance 
+
+Plan funds inflow includes the customer deposit and any top ups during the plan lifecycle, dealer contribution, monthly installment payments.
+Invoiced services are being posted after completion action by an accounts user of the dealer group or auto completed for manufacturer plans. Before that they are also considered for the current balance, but live in a intermediary table – pln.t_srv_log
+Plan Fees – are the dealer facilitation fees (setup fee), dealer management fees (similar to exsto management fees), but that remain for the dealer, cancellation fees – where applicable. !!!exsto management fees are stated in the customer contract but never posted in the balance sheet, but deducted in advance of the advanced payment (fully paid plans) or before posting each monthly installment
+
+Plan Current balance – the calculation is being done in a funcition -> pln.f_avl_fnd, which generally lookups the payment amount from another dedicated function pln.f_pmt_amt and deducts the invoiced services and the fees. 
+
+All the postings in the balance sheet have a ledger that serves to group them on plan level, dealership or even dealer group or manufacturer level. This serves for the reconciliation purposes of the accounts departments of the dealer/manufacturer. A clear view of the available ledgers can be done by executing the Balance value function for a dealer group. The ledger codes are subject to a setup in pln.t_par and can be global (dlr.t_dlr -> glb_bal_sht) or individual for each dealership, which is information provided by the dealer. Manufacturers commonly don`t have specific ledger codes and use dummy codes, as the reconciliation of the transactions is handled in different way.
+
+select * from pln.f_bal_val(DealerID, CentreID)
+ 
+
+There are specific rules for the balance sheet postings, but the main ones are:
+-	VAT is not posted for Servicing costs and centre contribution for all dealer plans. The reason for that is that both types are internal transactions for the dealer and they don`t need VAT to be reconciled. 
+-	On the opposite all manufacturer plans should have a VAT transaction on Servicing cost and contributions since those are handled by eDynamix (there could be exceptions depending on the manufacturer requirements).
+-	Most postings are booked with an Outstanding status in order to be marked as completed by an accounts user of the dealer. The idea behind that is that some actions as customer deposits / refunds, servicing costs are events that may not be executed for real. Setting the status of a transaction to Complete doesn`t affect the plan balance, it is used only for dealers that use and reconcile their DMS (Data management system) transactions with the exsto Plans. 
+-	Balance sheet postings can be consolidated which in terms of the plan doesn`t change anything, but when consolidated a transaction value is represented to the dealer in a Consolidated balance ledger in a specific accounts report (Balance sheet reconciliation) which again is used by dealers that match their DMS data with ours.
+
+
